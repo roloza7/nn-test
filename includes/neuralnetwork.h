@@ -2,8 +2,11 @@
 #define NEURAL_NETWORK_H_
 
 #include "activators.h"
+#include "sparsematrix.h"
 
+#include <ostream>
 #include <cstddef>
+
 using std::size_t;
 
 const static double BASE_WEIGHTS = 0.5;
@@ -15,6 +18,7 @@ class NeuralNetwork {
         void Initialise();
         void Step();
         void FeedData();
+        void PrintInnerNodes(std::ostream& os);
         
     private:
 
@@ -24,10 +28,11 @@ class NeuralNetwork {
 
         bool initialised_;
         size_t size_;
-        double* nodes_;
-        double* working_buffer_;
-        double** weights_;
-        double* biases_;
+        std::vector<double>* inner_nodes_;
+        SparseMatrix<double>* inner_weights_;
+        std::vector<double>* working_buffer_;
+        
+        std::vector<double>* inner_biases_;
         double (*activator_)(double);
         double (*activator_derivative_)(double);
 };

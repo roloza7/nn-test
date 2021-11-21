@@ -5,11 +5,11 @@ CXXFLAGS=-std=c++20 -g -fstandalone-debug
 
 exec: bin/exec
 
-bin/exec: ./src/*
+bin/exec: ./src/*.cpp
 	$(CXX) $(CXXFLAGS) $(CXXEXTRAS) $(INCLUDES) $^ -o $@
 
 .DEFAULT_GOAL := exec
 .PHONY: clean exec
 
 clean:
-	rm -fr bin/* obj/*
+	rm -fr bin/* obj/* 
