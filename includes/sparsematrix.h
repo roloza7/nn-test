@@ -19,6 +19,7 @@ class SparseMatrix {
     public:
         SparseMatrix();
         SparseMatrix(int width, int height);
+        SparseMatrix(size_t width, size_t height);
         T& operator()(int x, int y);
 
         friend ostream& operator<< <> (ostream& os, const SparseMatrix<T>& sm);

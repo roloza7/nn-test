@@ -41,6 +41,9 @@
         "xstddef": "cpp",
         "xtr1common": "cpp",
         "*.ipp": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "algorithm": "cpp",
+        "ctime": "cpp",
+        "random": "cpp"
     }
 }

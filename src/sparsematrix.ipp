@@ -10,6 +10,11 @@ SparseMatrix<T>::SparseMatrix(int width, int height) : width_(width), height_(he
 }
 
 template<typename T>
+SparseMatrix<T>::SparseMatrix(size_t width, size_t height) : width_(width), height_(height) {
+    data_.resize(height);
+};
+
+template<typename T>
 T& SparseMatrix<T>::operator()(int x, int y) {
     std::map<size_t, T>& row_map = data_[y];
     if (x < 0 || x >= int(width_)) throw std::out_of_range("Width index out of range.");
@@ -39,8 +44,6 @@ ostream& operator<<(ostream& os, const SparseMatrix<T>& sm) {
 
 template<typename T>
 void SparseMatrix<T>::Multiply(std::vector<T>*& values, std::vector<T>*& out) const {
-    (void) values;
-    std::fill(out->begin(), out->end(), T());
     for (unsigned y = 0; y < data_.size(); y++) {
         typename std::map<size_t, T>::const_iterator it = data_[y].begin();
         for(; it != data_[y].end(); ++it) {
