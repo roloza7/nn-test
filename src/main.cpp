@@ -10,8 +10,9 @@ int main( void ) {
     
     for (unsigned i = 0; i < l.size(); ++i) {
         l[i] = i;
-        for (unsigned j = 0; j < 4; ++j)
-            r[i][j] = i;
+        r[i][i] = 1;
+        // for (unsigned j = 0; j < 4; ++j)
+        //     r[i][j] = i;
     }
     
     std::cout << "[ ";

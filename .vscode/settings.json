@@ -44,6 +44,8 @@
         "vector": "cpp",
         "algorithm": "cpp",
         "ctime": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "cctype": "cpp",
+        "string": "cpp"
     }
 }
