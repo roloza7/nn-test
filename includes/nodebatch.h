@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef INPUT_BATCH_H_
 #define INPUT_BATCH_H_
 
@@ -16,9 +18,9 @@ using std::vector;
 class NodeBatch {
     public:
         NodeBatch() = delete;
-        NodeBatch(size_t node_count);
+        NodeBatch(size_t inner_node_count);
 
-        virtual vector<double>* AddSeries(vector<double>* input) = 0;
+        virtual vector<double>* AddSeries(vector<double>* series) = 0;
 
         const vector<SparseMatrix<double>*>& GetWeights() const;
         vector<SparseMatrix<double>*>& GetWeights();
@@ -26,10 +28,11 @@ class NodeBatch {
         const SparseMatrix<double>& GetWeight(int index) const;
         SparseMatrix<double>& GetWeight(int index);
 
+        size_t Size() const;
 
     protected:
-        size_t n_inputs_;
-        size_t node_count_;
+        size_t n_interfaces_;
+        size_t inner_node_count_;
         vector<vector<double>*> nodes_;
         vector<SparseMatrix<double>*> weights_;
 

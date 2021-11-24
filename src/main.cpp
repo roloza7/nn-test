@@ -1,30 +1,17 @@
 #include "sparsematrix.h"
+#include "neuralnetwork.h"
 #include <iostream>
 #include <ctime>
 #include <random>
 
 int main( void ) {
 
-    SparseMatrix<double> r(4, 4);
-    std::vector<double> l(4);
-    
-    for (unsigned i = 0; i < l.size(); ++i) {
-        l[i] = i;
-        r[i][i] = 1;
-        // for (unsigned j = 0; j < 4; ++j)
-        //     r[i][j] = i;
-    }
-    
-    std::cout << "[ ";
-    for (const double& d : l)
-        std::cout << d << " ";
-    std::cout << "]" << std::endl;
-
-    std::vector<double> o = LinAlg::Multiply(l, r);
-    std::cout << "[ ";
-    for (const double& d : o)
-        std::cout << d << " ";
-    std::cout << "]" << std::endl;
-
-
+    NeuralNetwork nn(10);
+    nn.PrintInnerNodes(std::cout);
+    std::vector<double>* input = new vector<double>({0, 0, 0, 0});
+    nn.AddInput(input);
+    std::vector<double>* output = new vector<double>(10);
+    nn.AddOutput(output);
+    nn.Step();
+    nn.PrintInnerNodes(std::cout);
 }

@@ -1,113 +1,96 @@
-// // #include "neuralnetwork.h"
-// // #include <algorithm>
+#include "neuralnetwork.h"
+#include <algorithm>
 
-// // NeuralNetwork::NeuralNetwork(unsigned size) : NeuralNetwork(size, Activators::FunctionType::Logistic) {};
+using std::vector;
 
-// // NeuralNetwork::NeuralNetwork(unsigned size, Activators::FunctionType ftype) : initialised_(false), size_(size), 
-// //                             n_inputs_(0), n_outputs_(0) {
-// //     inner_nodes_ = new std::vector<double>(size_);
-// //     working_buffer_ = new std::vector<double>(size_);
-// //     inner_weights_ = new SparseMatrix<double>(size_, size_);
-// //     inner_biases_ = new std::vector<double>(size_);
+NeuralNetwork::NeuralNetwork(unsigned size) : NeuralNetwork(size, Activators::FunctionType::BinaryStep) {};
 
-// //     std::pair<double (*)(double), double (*)(double)> activator_f_df = Activators::ActivatorMap.find(ftype)->second;
-// //     activator_ = activator_f_df.first;
-// //     activator_derivative_ = activator_f_df.second;
+NeuralNetwork::NeuralNetwork(unsigned size, Activators::FunctionType ftype) : initialised_(false), size_(size), input_nodes_(size), output_nodes_(size) {
+    inner_nodes_ = new vector<double>(size_);
+    working_buffer_ = new vector<double>(size_);
+    inner_weights_ = new SparseMatrix<double>(size_, size_);
+    inner_biases_ = new vector<double>(size_);
 
-// //     Initialise();
-// // }
+    std::pair<double (*)(double), double (*)(double)> activator_f_df = Activators::ActivatorMap.find(ftype)->second;
+    activator_ = activator_f_df.first;
+    activator_derivative_ = activator_f_df.second;
 
-
-// void NeuralNetwork::Initialise() {
-//     for (size_t i = 0; i < size_; ++i) {
-//         (*inner_nodes_)[i] = 0.1;
-//         for (size_t j = 0; j < size_; ++j)
-//             (*inner_weights_)(i, j) = BASE_WEIGHTS;
-//         (*inner_biases_)[i] = 0;
-//     }
-//     initialised_ = true;
-// }
-
-// void NeuralNetwork::AddInput(std::vector<double>* input_nodes) {
-//     input_nodes_.push_back(input_nodes);
-//     SparseMatrix<double>* sm = new SparseMatrix<double>(size_, input_nodes->size());
-//     input_weights_.push_back(sm);
-//     for (size_t i = 0; i < size_; ++i) {
-//         for (size_t j = 0; j < input_nodes->size(); ++j) {
-//             (*sm)(i, j) = BASE_WEIGHTS;
-//         }
-//     }
-//     n_inputs_++;
-// }
-
-// void NeuralNetwork::AddOutput(std::vector<double>* output_nodes) {
-//     output_nodes_.push_back(output_nodes);
-//     SparseMatrix<double>* sm = new SparseMatrix<double>(output_nodes->size(), size_);
-//     output_weights_.push_back(sm);
-//     for (size_t i = 0; i < output_nodes->size(); ++i) {
-//         for (size_t j = 0; j < size_; ++j) {
-//             (*sm)(i, j) = BASE_WEIGHTS;
-//         }
-//     }
-//     n_outputs_++;
-// }
-
-// void NeuralNetwork::Step() {
-//     std::fill(working_buffer_->begin(), working_buffer_->end(), 0);
-//     StepInputNodes();
-//     StepInnerNodes();
-//     Dampen();
-//     StepOutputNodes();
-// }
-
-// void NeuralNetwork::StepInputNodes() {
-//     for (size_t i = 0; i < n_inputs_; ++i) {
-//         input_weights_[i]->Multiply(input_nodes_[i], inner_nodes_);
-//     }
-// }
+    Initialise();
+}
 
 
-// /**
-//  *  Steps inner nodes.
-//  *  Switches between the node storage and a working buffer.
-//  * */
-// void NeuralNetwork::StepInnerNodes() {
-//     inner_weights_->Multiply(inner_nodes_, working_buffer_);
-//     std::vector<double>* t = inner_nodes_;
-//     inner_nodes_ = working_buffer_;
-//     working_buffer_ = t;
+void NeuralNetwork::Initialise() {
+    for (size_t i = 0; i < size_; ++i) {
+        (*inner_nodes_)[i] = 0.1;
+        SparseMatrix<double>::RowProxy row = (*inner_weights_)[i];
+        for (size_t j = 0; j < size_; ++j)
+            row[j] = BASE_WEIGHTS;
+        (*inner_biases_)[i] = 0;
+    }
+    initialised_ = true;
+}
 
-//     for (unsigned i = 0; i < size_; i++) {
-//         (*inner_nodes_)[i] += (*inner_biases_)[i];
-//         (*inner_nodes_)[i] = activator_((*inner_nodes_)[i]);
-//     }
-// }
+void NeuralNetwork::AddInput(vector<double>* input_nodes) {
+    input_nodes_.AddSeries(input_nodes);
+}
 
-// void NeuralNetwork::StepOutputNodes() {
-//     for (size_t i = 0; i < n_outputs_; ++i) {
-//         output_weights_[i]->Multiply(inner_nodes_, output_nodes_[i]);
-//     }
-// }
+void NeuralNetwork::AddOutput(vector<double>* output_nodes) {
+    output_nodes_.AddSeries(output_nodes);
+}
 
-// void NeuralNetwork::Dampen() {
-//     for (double& v : *inner_nodes_)
-//         v *= DAMPENING;
-// }
+void NeuralNetwork::Step() {
+    std::fill(working_buffer_->begin(), working_buffer_->end(), 0);
+    
+    Dampen();
 
-// void NeuralNetwork::PrintInnerNodes(std::ostream& os) {
-//     os << "[ ";
-//     for (auto it = inner_nodes_->begin(); it != inner_nodes_->end(); ++it) {
-//         os << *it << " ";
-//     }
-//     os << "]" << std::endl;
-//     return;
-// }
+    input_nodes_.Propagate(*working_buffer_);
 
-// void NeuralNetwork::PrintOutputNodes(std::ostream& os, int index) {
-//     os << "[ ";
-//     for (auto it = output_nodes_[index]->begin(); it != output_nodes_[index]->end(); ++it) {
-//         os << *it << " ";
-//     } 
-//     os << "]" << std::endl;
-//     return;
-// }
+    Propagate();
+    
+    output_nodes_.Propagate(*inner_nodes_);
+}
+
+
+/**
+ *  Steps inner nodes.
+ *  Switches between the node storage and a working buffer.
+ * */
+void NeuralNetwork::Propagate() {
+    LinAlg::Multiply(*inner_nodes_, *inner_weights_, *working_buffer_);
+    vector<double>* t = inner_nodes_;
+    inner_nodes_ = working_buffer_;
+    working_buffer_ = t;
+
+    for (unsigned i = 0; i < size_; i++) {
+        (*inner_nodes_)[i] += (*inner_biases_)[i];
+        (*inner_nodes_)[i] = activator_((*inner_nodes_)[i]);
+    }
+}
+
+void NeuralNetwork::Dampen() {
+    for (double& v : *inner_nodes_)
+        v *= DAMPENING;
+}
+
+void NeuralNetwork::PrintInnerNodes(std::ostream& os) {
+    os << "[ ";
+    for (auto it = inner_nodes_->begin(); it != inner_nodes_->end(); ++it) {
+        os << *it << " ";
+    }
+    os << "]" << std::endl;
+    return;
+}
+
+void NeuralNetwork::PrintOutputNodes(std::ostream& os, int index) {
+    const vector<vector<double>*> series = output_nodes_.GetSeries();
+
+
+    os << "[ ";
+    for (const double& d : *(series)[index])
+        os << d << " ";
+    os << "]\n";
+
+
+    os << std::endl;
+
+}

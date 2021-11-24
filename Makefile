@@ -3,10 +3,11 @@ INCLUDES=-Iincludes/
 CXXEXTRAS=-Wall -Wextra -Werror -pedantic
 CXXFLAGS=-std=c++20 -g -fstandalone-debug
 
+
 exec: bin/exec
 
-bin/exec: ./src/*.cpp
-	$(CXX) $(CXXFLAGS) $(CXXEXTRAS) $(INCLUDES) $^ -o $@
+bin/exec: src/*
+	$(CXX) $(CXXFLAGS) $(CXXEXTRAS) $(INCLUDES) src/*.cpp -o $@
 
 .DEFAULT_GOAL := exec
 .PHONY: clean exec
