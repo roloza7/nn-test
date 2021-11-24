@@ -34,7 +34,7 @@ class NeuralNetwork {
         InputBatch& GetInputNodes();
         OutputBatch& GetOutputNodes();
 
-        const SparseMatrix<double>& GetWeights();
+        SparseMatrix<double>& GetWeights();
 
     private:
 
@@ -45,6 +45,7 @@ class NeuralNetwork {
         void CalculateWeightChange();
 
         double BASE_WEIGHTS;
+        double BASE_BIASES;
         double DAMPENING;
         double PLASTICITY;
         double PRUNING;

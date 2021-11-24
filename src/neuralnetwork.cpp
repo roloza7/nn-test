@@ -1,7 +1,9 @@
 #include "neuralnetwork.h"
+#include "sparsematrix.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <iostream>
 using std::vector;
 using std::log;
 using std::exp;
@@ -27,11 +29,14 @@ NeuralNetwork::NeuralNetwork(unsigned size, Activators::FunctionType ftype) : in
 
 void NeuralNetwork::Initialise() {
     for (size_t i = 0; i < size_; ++i) {
-        (*inner_nodes_)[i] = 0.1;
+        (*inner_nodes_)[i] = 0;
         SparseMatrix<double>::RowProxy row = (*inner_weights_)[i];
+        (*inner_biases_)[i] = BASE_BIASES;
+        if (BASE_WEIGHTS == 0)
+            continue;
         for (size_t j = 0; j < size_; ++j)
             row[j] = BASE_WEIGHTS;
-        (*inner_biases_)[i] = 0;
+        
     }
     initialised_ = true;
 }
@@ -50,7 +55,11 @@ void NeuralNetwork::SetConstants(double base_weights, double dampening, double p
     if (capacity.size() != size_)
         throw std::runtime_error("Capacity is not the same size as the network structure");
 
+    for (const double& d : capacity)
+        assert(d != 0);
+
     BASE_WEIGHTS = base_weights;
+    BASE_BIASES = 0;
     DAMPENING = dampening;
     PLASTICITY = plasticity;
     PRUNING = pruning;
@@ -79,10 +88,11 @@ void NeuralNetwork::Step() {
 
     // Propagate inner nodes onto themselves
     Propagate();
-    
+
     // Propagate inner nodes to output nodes
     output_nodes_.Propagate(*working_buffer_);
 
+    
     /** 
      * At this point input_nodes_ stores the n_i iteration, and working_buffer_ stores n_(i+1)
      *  We now calculate weight changes based on neuron activation
@@ -104,6 +114,16 @@ void NeuralNetwork::Step() {
      *  Capacity affects synapse creation. Does not affect weights. Negatively affects pruning if node is over encumbered.
      *  
      **/
+    CalculateSynapsesDiff();
+
+    CalculatePruning();
+
+
+
+
+    vector<double>* t = inner_nodes_;
+    inner_nodes_ = working_buffer_;
+    working_buffer_ = t;
 }
 
 
@@ -159,7 +179,7 @@ OutputBatch& NeuralNetwork::GetOutputNodes() {
     return output_nodes_;
 }
 
-const SparseMatrix<double>& NeuralNetwork::GetWeights() {
+SparseMatrix<double>& NeuralNetwork::GetWeights() {
     return *inner_weights_;
 }
 
@@ -171,30 +191,45 @@ void NeuralNetwork::StepInnerWeights() {
     CalculateSynapsesDiff();
 }
 
-static const double c = log(3.85911496);
-static const double denom = exp(-4*c) - 2*exp(-c) + 1;
-static const double num = -2 * exp(-c);
+static const double c = 4.5;
+static const double mult = 2.0 * std::sqrt(c / 3.14159265);
 
+/**
+ * Steps synapse towards/away from zero according to the gaussian integral 
+ * 
+ * @param x start point
+ * @param p step (negative -> towards zero)
+ * @return double 
+ */
 double NeuralNetwork::InterpolateSynapse(double x, const double& p) {
     // interpolation constant
-    bool sign = std::signbit(x); // true if negative
+    bool sign = (std::signbit(x) == false ? 1 : -1);// tr ue if negative
 
-    // negative plasticity interpolates towards zero, otherwise one
-    x = x + p * (sign ? -1 : 1);
+    /**
+     *  x > 0, p > 0 -> step forward
+     *  x < 0, p > 0 -> step backward
+     *  x > 0, p < 0 -> step backward
+     *  x < 0, p > 0 -> step forward
+     */
 
-    // clamp x to [-1, 1]
-    x = max(min(x, 1.0), -1.0);
+    // Calculate midpoint riemann sum
+    double mid = x + (p/2.0) * sign;
+    double dy = mult * (exp(-c * (mid - 1) * (mid - 1)) + exp(-c * (mid + 1) * (mid + 1))) * p * sign;
 
+    // if it crosses y = x = 0, return 0. This is a guard against high plasticity relative to pruning.  
+    if (std::signbit(x) != std::signbit(x + dy))
+        return 0;
     // return will be in the interpolated range
-    return ((exp(-c * (x - 1) * (x - 1)) + exp(-c * (-x - 1) * (-x - 1)) + num)/(denom)) * sign;
+    return min(max(x + dy, -2.0), 2.0);
 }
 
 void NeuralNetwork::CalculateSynapsesDiff() {
     for (size_t y = 0; y < size_; ++y) {
 
         // If node didn't activate (i.e.: pass on its signal), don't calculate synapse differential
-        if ((*inner_nodes_)[y] == 0)
+        if ((*inner_nodes_)[y] == 0) {
             continue;
+        }
 
         // Iterate and change weights
         std::map<size_t, double>::iterator row = (*inner_weights_)[y].begin();
@@ -211,6 +246,18 @@ void NeuralNetwork::CalculateSynapsesDiff() {
 
 void NeuralNetwork::GenerateSpontaneousSynapses() {
 
+}
+
+void NeuralNetwork::CalculatePruning() {
+
+    for (size_t y = 0; y < size_; ++y) {
+        SparseMatrix<double>::RowProxy row_proxy = (*inner_weights_)[y];
+        double capacity_ratio = ((double) row_proxy.size()) / CAPACITY[y];
+        capacity_ratio = std::min(capacity_ratio, 1.0); // clamp to 1 if under capacity
+        std::map<size_t, double>::iterator row = row_proxy.begin();
+        if (std::fabs(row->second) < PRUNING * capacity_ratio) // higher capacity ratios mean higher pruning chance
+            (*inner_weights_)[y].erase(row->first);
+    }
 }
 
 #pragma endregion Synapses

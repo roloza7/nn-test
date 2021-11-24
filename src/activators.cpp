@@ -23,7 +23,7 @@ double Activators::Functions::HyperbolicTangent(double x) {
 }
 
 double Activators::Functions::BinaryStep(double x) {
-    return 1.0 - (double) std::signbit(x);
+    return (x > 0 ? 1 : 0);
 }
 
 /**

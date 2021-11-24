@@ -87,3 +87,13 @@ template<typename T>
 size_t SparseMatrix<T>::Height() {
     return height_;
 }
+
+template<typename T>
+void SparseMatrix<T>::RowProxy::erase(size_t index) {
+    row_->erase(index);
+}
+
+template<typename T>
+size_t SparseMatrix<T>::RowProxy::size() {
+    return row_->size();
+}

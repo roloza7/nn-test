@@ -24,6 +24,8 @@ class SparseMatrix {
                 T& operator[](int index);
                 typename std::map<size_t, T>::iterator begin();
                 typename std::map<size_t, T>::iterator end();
+                void erase(size_t index);
+                size_t size();
             private:
                 size_t width_;
                 std::map<size_t, T>* row_;

@@ -22,3 +22,4 @@ void InputBatch::Propagate(vector<double>& out) const {
 vector<vector<double>*>& InputBatch::GetSeries() {
     return nodes_;
 }
+
