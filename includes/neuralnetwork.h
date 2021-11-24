@@ -11,13 +11,13 @@
 
 using std::size_t;
 
-const static double BASE_WEIGHTS = 0.2;
-const static double DAMPENING = 0.5;
 
 class NeuralNetwork {
     public:
         NeuralNetwork(unsigned int);
         NeuralNetwork(unsigned int, Activators::FunctionType ftype);
+        void SetConstants(double base_weights, double dampening, double plasticity,
+                        double pruning, double synaptogenesis, const std::vector<double>& capacity);
         void Initialise();
         void Step();
         void FeedData();
@@ -25,11 +25,31 @@ class NeuralNetwork {
         void PrintOutputNodes(std::ostream& os, int index);
         void AddInput(std::vector<double>* input_nodes);
         void AddOutput(std::vector<double>* output_nodes);
+
+        void StepInnerWeights();
+        void CalculateSynapsesDiff();
+        void GenerateSpontaneousSynapses();
+        void CalculatePruning();
         
+        InputBatch& GetInputNodes();
+        OutputBatch& GetOutputNodes();
+
+        const SparseMatrix<double>& GetWeights();
+
     private:
 
         void Propagate();
         void Dampen();
+        double InterpolateSynapse(double x, const double& p);
+
+        void CalculateWeightChange();
+
+        double BASE_WEIGHTS;
+        double DAMPENING;
+        double PLASTICITY;
+        double PRUNING;
+        double SYNAPTOGENESIS;
+        std::vector<double> CAPACITY;
 
         bool initialised_;
         size_t size_;

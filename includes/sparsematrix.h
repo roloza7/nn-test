@@ -22,6 +22,8 @@ class SparseMatrix {
             public:
                 RowProxy(std::map<size_t, T>* row, size_t width);
                 T& operator[](int index);
+                typename std::map<size_t, T>::iterator begin();
+                typename std::map<size_t, T>::iterator end();
             private:
                 size_t width_;
                 std::map<size_t, T>* row_;
@@ -31,7 +33,10 @@ class SparseMatrix {
         SparseMatrix(int width, int height);
         SparseMatrix(size_t width, size_t height);
         RowProxy operator[](int index);
-        const RowProxy operator[](int index) const;    
+        const RowProxy operator[](int index) const;  
+
+        size_t Width();
+        size_t Height();  
 
         // Friends
         friend ostream& operator<< <> (ostream& os, const SparseMatrix<T>& sm);    

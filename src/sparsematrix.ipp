@@ -48,3 +48,42 @@ const typename SparseMatrix<T>::RowProxy SparseMatrix<T>::operator[](int index) 
 
     return RowProxy(data_[index], width_);
 }
+
+template<typename T>
+typename std::map<size_t, T>::iterator SparseMatrix<T>::RowProxy::begin() {
+    return row_->begin();
+}
+
+template<typename T>
+typename std::map<size_t, T>::iterator SparseMatrix<T>::RowProxy::end() {
+    return row_->end();
+}
+
+template<typename T>
+ostream& operator<<(ostream& os, const SparseMatrix<T>& sm) {
+    os << "[";
+    for (size_t y = 0; y < sm.height_; ++y) {
+        os << "[ ";
+        for (size_t x = 0; x < sm.width_; ++x) {
+            typename std::map<size_t, T>::iterator lookup = sm.data_[y]->find(x);
+            if (lookup != sm.data_[y]->end())
+                os << lookup->second << " ";
+            else
+                os << 0 << " ";
+        }
+        os << "]";
+        if (y != sm.height_ - 1) os << "\n ";
+    }
+    os << "]" << std::endl;
+    return os;
+}
+
+template<typename T>
+size_t SparseMatrix<T>::Width() {
+    return width_;
+}
+
+template<typename T>
+size_t SparseMatrix<T>::Height() {
+    return height_;
+}

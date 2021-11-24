@@ -4,7 +4,7 @@
 using std::vector;
 using std::size_t;
 
-class OutputBatch : NodeBatch {
+class OutputBatch : public NodeBatch {
     public:
         OutputBatch() = delete;
         OutputBatch(size_t inner_node_count);

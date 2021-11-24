@@ -1,7 +1,7 @@
 #pragma once
 #include "nodebatch.h"
 
-class InputBatch : NodeBatch {
+class InputBatch : public NodeBatch {
     public:
         InputBatch() = delete;
         InputBatch(size_t inner_node_count);
