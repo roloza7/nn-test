@@ -5,6 +5,7 @@
 #include <map>
 #include <cstddef>
 #include <ostream>
+#include <random>
 #include "linalg.h"
 
 using std::vector;
@@ -49,6 +50,7 @@ class SparseMatrix {
         size_t width_;
         size_t height_;
         vector<std::map<size_t, T>*> data_;
+        
 
 };
 

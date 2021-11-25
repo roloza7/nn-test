@@ -64,6 +64,10 @@ class NeuralNetwork {
 
         double (*activator_)(double);
         double (*activator_derivative_)(double);
+
+        std::mt19937 rng_;
+        std::uniform_real_distribution<> urd_;
+        std::uniform_int_distribution<> uid_;
 };
 
 #endif // NEURALNETOWRK_H_

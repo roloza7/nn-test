@@ -14,7 +14,7 @@ void printVector(std::ostream& os, const std::vector<double>& v) {
 int main( void ) {
 
     NeuralNetwork nn(4);
-    nn.SetConstants(0, 1, 0.2, 0.006, 0, std::vector<double>(4, 1));
+    nn.SetConstants(0, 1, 0.2, 0.006, 1, std::vector<double>(4, 3));
     std::vector<double>* input = new vector<double>({1, 0});
     nn.AddInput(input);
     InputBatch& inputBatch = nn.GetInputNodes();

@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <random>
 using std::vector;
 using std::log;
 using std::exp;
@@ -23,6 +24,12 @@ NeuralNetwork::NeuralNetwork(unsigned size, Activators::FunctionType ftype) : in
     std::pair<double (*)(double), double (*)(double)> activator_f_df = Activators::ActivatorMap.find(ftype)->second;
     activator_ = activator_f_df.first;
     activator_derivative_ = activator_f_df.second;
+
+    // setup rng;
+    std::random_device rd;
+    rng_.seed(rd());
+    urd_.param(std::uniform_real_distribution<>(0.0, 1.0).param());
+    uid_.param(std::uniform_int_distribution<>(0, size_ - 1).param());
 
 }
 
@@ -115,8 +122,8 @@ void NeuralNetwork::Step() {
      *  
      **/
     CalculateSynapsesDiff();
-
     CalculatePruning();
+    GenerateSpontaneousSynapses();  
 
 
 
@@ -245,7 +252,23 @@ void NeuralNetwork::CalculateSynapsesDiff() {
 }
 
 void NeuralNetwork::GenerateSpontaneousSynapses() {
+    for (size_t y = 0; y < size_; ++y) {
+        SparseMatrix<double>::RowProxy row_proxy = (*inner_weights_)[y];
+        double capacity_ratio = ((double) row_proxy.size()) / CAPACITY[y];
+        
+        /**
+         * rng generates a random real number between 0 and 1
+         * 
+         */
 
+        double random_num = urd_(rng_) * SYNAPTOGENESIS;
+        if (random_num > capacity_ratio) {
+            size_t idx = uid_(rng_);
+            if (row_proxy[idx] == 0)
+                row_proxy[idx] = urd_(rng_) - 0.5;
+        }
+
+    }
 }
 
 void NeuralNetwork::CalculatePruning() {

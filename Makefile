@@ -22,7 +22,7 @@ obj:
 	mkdir $@
 
 .DEFAULT_GOAL := exec
-.PHONY: clean exec
+.PHONY: clean exec dll
 
 clean:
 	rm -fr bin/* obj/* *.o
