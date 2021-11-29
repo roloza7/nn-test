@@ -47,6 +47,8 @@ class SparseMatrix {
 
         size_t Width();
         size_t Height();  
+        void SetWidth(size_t new_width);
+        void SetHeight(size_t new_height);
 
         // Friends
         friend ostream& operator<< <> (ostream& os, const SparseMatrix<T>& sm);    

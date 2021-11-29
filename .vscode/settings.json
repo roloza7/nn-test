@@ -46,6 +46,7 @@
         "ctime": "cpp",
         "random": "cpp",
         "cctype": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "sstream": "cpp"
     }
 }

@@ -9,7 +9,7 @@ SparseMatrix<T>::RowProxy::RowProxy(std::map<size_t, T>* row, size_t width) : wi
 template<typename T>
 T& SparseMatrix<T>::RowProxy::operator[](int index) { 
     if (index < 0 || (size_t) index >= width_)
-        throw std::out_of_range("SparseMatrix column index out of range");
+        throw std::out_of_range("SparseMatrix column index out of range: " + std::to_string(index));
     return (*row_)[index];
 };
 
@@ -143,5 +143,25 @@ void SparseMatrix<T>::Set(const SparseMatrix& other) {
 
     height_ = other.height_;
     width_ = other.width_;
+
+}
+
+template<typename T>
+void SparseMatrix<T>::SetWidth(size_t new_width) {
+    if (width_ > new_width)
+        throw std::runtime_error("Cannot resize to a smaller width");
+
+    width_ = new_width;
+}
+
+template<typename T>
+void SparseMatrix<T>::SetHeight(size_t new_height) {
+    if (height_ > new_height)
+        throw std::runtime_error("Cannot resize to smaller height");
+    if (height_ == new_height)
+        return;
+    data_.resize(new_height, new std::map<size_t, double>());
+
+    height_ = new_height;
 
 }
