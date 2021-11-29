@@ -19,6 +19,17 @@ T& SparseMatrix<T>::RowProxy::operator[](int index) {
 #pragma region Constructors
 
 template<typename T>
+SparseMatrix<T>::SparseMatrix(const SparseMatrix& other) {
+    height_ = other.height_;
+    width_ = other.width_;
+    data_.resize(other.height_);
+    for (size_t i = 0; i < other.height_; ++i) {
+        data_[i] = new std::map<size_t, T>();
+        data_[i] = other.data_[i];
+    }    
+}
+
+template<typename T>
 SparseMatrix<T>::SparseMatrix() : SparseMatrix(0, 0) {};
 
 template<typename T>
@@ -96,4 +107,41 @@ void SparseMatrix<T>::RowProxy::erase(size_t index) {
 template<typename T>
 size_t SparseMatrix<T>::RowProxy::size() {
     return row_->size();
+}
+
+template<typename T>
+SparseMatrix<T>::~SparseMatrix() {
+    for (size_t i = 0; i < data_.size(); ++i)
+        delete data_[i];
+}
+
+template<typename T>
+SparseMatrix<T>& SparseMatrix<T>::operator=(const SparseMatrix<T>& rhs) {
+    for (size_t i = 0; i < data_.size(); ++i)
+        delete data_[i];
+
+
+    for (size_t i = 0; i < height_; ++i)
+        *data_[i] = *rhs.data_[i];
+    
+    return *this;
+}
+
+template<typename T>
+void SparseMatrix<T>::Set(const SparseMatrix& other) {
+
+    for (size_t i = other.height_; i < height_; ++i)
+        delete data_[i];
+    
+    data_.reserve(other.height_);
+
+    for (size_t i = height_; i < other.height_; ++i)
+        data_[i] = new std::map<size_t, T>();
+
+    for (size_t i = 0; i < other.height_; ++i)
+        *data_[i] = *other.data_[i];
+
+    height_ = other.height_;
+    width_ = other.width_;
+
 }

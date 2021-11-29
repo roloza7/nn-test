@@ -20,7 +20,7 @@ class NodeBatch {
         NodeBatch() = delete;
         NodeBatch(size_t inner_node_count);
 
-        virtual vector<double>* AddSeries(vector<double>* series) = 0;
+        virtual vector<double>* AddSeries(vector<double>* series, vector<double>* capacity) = 0;
 
         const vector<SparseMatrix<double>*>& GetWeights() const;
         vector<SparseMatrix<double>*>& GetWeights();

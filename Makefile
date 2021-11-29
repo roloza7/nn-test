@@ -1,6 +1,6 @@
 CXX=clang++
 INCLUDES=-Iincludes/
-CXXEXTRAS=-Wall -Wextra -Werror -pedantic
+CXXEXTRAS=-Wall -Wextra -Werror -pedantic -Wno-error=unused-function -Wno-error=unused-variable
 CXXFLAGS=-std=c++20 -g -fstandalone-debug
 SRC := src
 OBJ := obj
@@ -10,8 +10,10 @@ OBJECTS := $(patsubst $(SRC)/%.cpp, $(OBJ)/%.o, $(SOURCES))
 
 
 exec: bin/exec
+dll: bin/dll
 
-bin/exec: $(OBJECTS) $(SRC)/main.cpp
+
+bin/exec: $(SRC)/*.cpp
 	$(CXX) $(CXXFLAGS) $(CXXEXTRAS) $(INCLUDES) $^ -o $@
 
 $(OBJ)/%.o: $(SRC)/%.cpp | obj

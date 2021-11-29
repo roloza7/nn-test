@@ -1,10 +1,10 @@
 #include "neuralnetwork.h"
 #include "sparsematrix.h"
+#include "utils.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <iostream>
-#include <random>
 using std::vector;
 using std::log;
 using std::exp;
@@ -25,39 +25,25 @@ NeuralNetwork::NeuralNetwork(unsigned size, Activators::FunctionType ftype) : in
     activator_ = activator_f_df.first;
     activator_derivative_ = activator_f_df.second;
 
-    // setup rng;
-    std::random_device rd;
-    rng_.seed(rd());
-    urd_.param(std::uniform_real_distribution<>(0.0, 1.0).param());
-    uid_.param(std::uniform_int_distribution<>(0, size_ - 1).param());
-
 }
 
 
 void NeuralNetwork::Initialise() {
-    for (size_t i = 0; i < size_; ++i) {
-        (*inner_nodes_)[i] = 0;
-        SparseMatrix<double>::RowProxy row = (*inner_weights_)[i];
-        (*inner_biases_)[i] = BASE_BIASES;
-        if (BASE_WEIGHTS == 0)
-            continue;
-        for (size_t j = 0; j < size_; ++j)
-            row[j] = BASE_WEIGHTS;
-        
-    }
+    std::fill(inner_nodes_->begin(), inner_nodes_->end(), 0);
+
     initialised_ = true;
 }
 
-void NeuralNetwork::AddInput(vector<double>* input_nodes) {
-    input_nodes_.AddSeries(input_nodes);
+void NeuralNetwork::AddInput(vector<double>* input_nodes, vector<double>* capacity) {
+    input_nodes_.AddSeries(input_nodes, capacity);
 }
 
-void NeuralNetwork::AddOutput(vector<double>* output_nodes) {
-    output_nodes_.AddSeries(output_nodes);
+void NeuralNetwork::AddOutput(vector<double>* output_nodes, vector<double>* capacity) {
+    output_nodes_.AddSeries(output_nodes, capacity);
 }
 
 void NeuralNetwork::SetConstants(double base_weights, double dampening, double plasticity,
-                        double pruning, double synaptogenesis, const std::vector<double>& capacity) {
+    double pruning, double synaptogenesis, const std::vector<double>& capacity) {
 
     if (capacity.size() != size_)
         throw std::runtime_error("Capacity is not the same size as the network structure");
@@ -72,7 +58,7 @@ void NeuralNetwork::SetConstants(double base_weights, double dampening, double p
     PRUNING = pruning;
     SYNAPTOGENESIS = synaptogenesis;
     CAPACITY = capacity;
-    
+
     Initialise();
 
     initialised_ = true;
@@ -86,7 +72,7 @@ void NeuralNetwork::Step() {
     assert(initialised_);
     // Reset working buffer
     std::fill(working_buffer_->begin(), working_buffer_->end(), 0);
-    
+
     // Dampen the previous (temporal) outputs.
     Dampen();
 
@@ -99,8 +85,8 @@ void NeuralNetwork::Step() {
     // Propagate inner nodes to output nodes
     output_nodes_.Propagate(*working_buffer_);
 
-    
-    /** 
+
+    /**
      * At this point input_nodes_ stores the n_i iteration, and working_buffer_ stores n_(i+1)
      *  We now calculate weight changes based on neuron activation
      *  As a rule: neurons that fire together, stay together
@@ -109,7 +95,7 @@ void NeuralNetwork::Step() {
      *  3. If A has enough capacity, it will try to randomly connect to other nodes.
      *  4. The system biases against smaller weights, with stronger connections fading more slowly.
      *  5. If a change to A -> B would put it under a specific threshold of absolute value, it is removed.
-     * 
+     *
      *  These changes are governed by several constants:
      *  PLASTICITY. How much a connection can change in a given step.
      *  Plasticity also affects synapse creation and deletion.
@@ -119,11 +105,9 @@ void NeuralNetwork::Step() {
      *  Synaptogenesis affects spontaneous synapse creation.
      *  CAPACITY. How many connections a given neuron can support.
      *  Capacity affects synapse creation. Does not affect weights. Negatively affects pruning if node is over encumbered.
-     *  
+     *
      **/
-    CalculateSynapsesDiff();
-    CalculatePruning();
-    GenerateSpontaneousSynapses();  
+    StepWeights();
 
 
 
@@ -165,16 +149,17 @@ void NeuralNetwork::PrintInnerNodes(std::ostream& os) {
     return;
 }
 
-void NeuralNetwork::PrintOutputNodes(std::ostream& os, int index) {
-    const vector<vector<double>*> series = output_nodes_.GetSeries();
+void NeuralNetwork::PrintOutputNodes(std::ostream& os) {
+    const vector<vector<double>*>& series = output_nodes_.GetSeries();
 
 
-    os << "[ ";
-    for (const double& d : *(series)[index])
-        os << d << " ";
-    os << "]\n";
 
-
+    for (auto it = series.begin(); it != series.end(); ++it) {
+        os << "[ ";
+        for (size_t i = 0; i < (*it)->size(); ++i)
+            os << (*it)->operator[](i) << " ";
+        os << "]";
+    }
     os << std::endl;
 
 }
@@ -194,93 +179,220 @@ SparseMatrix<double>& NeuralNetwork::GetWeights() {
 
 #pragma region Synapses
 
-void NeuralNetwork::StepInnerWeights() {
-    CalculateSynapsesDiff();
-}
+void NeuralNetwork::StepWeights() {
+    // Step input weights
+    vector<vector<double>*>& inputs = input_nodes_.GetSeries();
+    vector<SparseMatrix<double>*>& inputs_weights = input_nodes_.GetWeights();
+    vector<vector<double>*>& capacities = input_nodes_.GetCapacities();
+    for (size_t s = 0; s < inputs.size(); ++s) {
 
-static const double c = 4.5;
-static const double mult = 2.0 * std::sqrt(c / 3.14159265);
-
-/**
- * Steps synapse towards/away from zero according to the gaussian integral 
- * 
- * @param x start point
- * @param p step (negative -> towards zero)
- * @return double 
- */
-double NeuralNetwork::InterpolateSynapse(double x, const double& p) {
-    // interpolation constant
-    bool sign = (std::signbit(x) == false ? 1 : -1);// tr ue if negative
-
-    /**
-     *  x > 0, p > 0 -> step forward
-     *  x < 0, p > 0 -> step backward
-     *  x > 0, p < 0 -> step backward
-     *  x < 0, p > 0 -> step forward
-     */
-
-    // Calculate midpoint riemann sum
-    double mid = x + (p/2.0) * sign;
-    double dy = mult * (exp(-c * (mid - 1) * (mid - 1)) + exp(-c * (mid + 1) * (mid + 1))) * p * sign;
-
-    // if it crosses y = x = 0, return 0. This is a guard against high plasticity relative to pruning.  
-    if (std::signbit(x) != std::signbit(x + dy))
-        return 0;
-    // return will be in the interpolated range
-    return min(max(x + dy, -2.0), 2.0);
-}
-
-void NeuralNetwork::CalculateSynapsesDiff() {
-    for (size_t y = 0; y < size_; ++y) {
-
-        // If node didn't activate (i.e.: pass on its signal), don't calculate synapse differential
-        if ((*inner_nodes_)[y] == 0) {
-            continue;
-        }
-
-        // Iterate and change weights
-        std::map<size_t, double>::iterator row = (*inner_weights_)[y].begin();
-
-        for (; row != (*inner_weights_)[y].end(); ++row) {
-            if ((*working_buffer_)[row->first] == 1)
-                row->second = InterpolateSynapse(row->second, PLASTICITY);
-            else
-                row->second = InterpolateSynapse(row->second, -PLASTICITY);
-        }
+        Utils::CalculateSynapsesDiff(*inputs[s], *inputs_weights[s], *working_buffer_, PLASTICITY);
+        Utils::CalculatePruning(*inputs_weights[s], *capacities[s], PRUNING);
+        Utils::GenerateSpontaneousSynapses(*inputs_weights[s], *capacities[s], SYNAPTOGENESIS);
 
     }
-}
 
-void NeuralNetwork::GenerateSpontaneousSynapses() {
-    for (size_t y = 0; y < size_; ++y) {
-        SparseMatrix<double>::RowProxy row_proxy = (*inner_weights_)[y];
-        double capacity_ratio = ((double) row_proxy.size()) / CAPACITY[y];
-        
-        /**
-         * rng generates a random real number between 0 and 1
-         * 
-         */
+    // Step inner weights
+    Utils::CalculateSynapsesDiff(*inner_nodes_, *inner_weights_, *working_buffer_, PLASTICITY);
+    Utils::CalculatePruning(*inner_weights_, CAPACITY, PRUNING);
+    Utils::GenerateSpontaneousSynapses(*inner_weights_, CAPACITY, SYNAPTOGENESIS);
 
-        double random_num = urd_(rng_) * SYNAPTOGENESIS;
-        if (random_num > capacity_ratio) {
-            size_t idx = uid_(rng_);
-            if (row_proxy[idx] == 0)
-                row_proxy[idx] = urd_(rng_) - 0.5;
-        }
+    const vector<vector<double>*>& outputs = output_nodes_.GetSeries();
+    vector<SparseMatrix<double>*>& outputs_weights = output_nodes_.GetWeights();
+    vector<vector<double>*>& outputs_capacities = output_nodes_.GetCapacities();
+    for (size_t s = 0; s < outputs.size(); ++s) {
 
-    }
-}
+        Utils::CalculateSynapsesDiff(*inner_nodes_, *outputs_weights[s], *outputs[s], PLASTICITY);
+        Utils::CalculatePruning(*outputs_weights[s], *outputs_capacities[s], PRUNING);
+        Utils::GenerateSpontaneousSynapses(*outputs_weights[s], *outputs_capacities[s], SYNAPTOGENESIS);
 
-void NeuralNetwork::CalculatePruning() {
-
-    for (size_t y = 0; y < size_; ++y) {
-        SparseMatrix<double>::RowProxy row_proxy = (*inner_weights_)[y];
-        double capacity_ratio = ((double) row_proxy.size()) / CAPACITY[y];
-        capacity_ratio = std::min(capacity_ratio, 1.0); // clamp to 1 if under capacity
-        std::map<size_t, double>::iterator row = row_proxy.begin();
-        if (std::fabs(row->second) < PRUNING * capacity_ratio) // higher capacity ratios mean higher pruning chance
-            (*inner_weights_)[y].erase(row->first);
     }
 }
 
 #pragma endregion Synapses
+
+NeuralNetwork::~NeuralNetwork() {
+    delete inner_nodes_;
+    delete inner_weights_;
+    delete inner_biases_;
+    delete working_buffer_;
+}
+
+vector<double>& NeuralNetwork::GetBiases() {
+    return *inner_biases_;
+}
+
+double NeuralNetwork::GetDampening() {
+    return DAMPENING;
+}
+double NeuralNetwork::Plasticity() {
+    return PLASTICITY;
+}
+double NeuralNetwork::Pruning() {
+    return PRUNING;
+}
+double NeuralNetwork::Synaptogenesis() {
+    return SYNAPTOGENESIS;
+}
+
+vector<double>& NeuralNetwork::GetCapacities() {
+    return CAPACITY;
+}
+
+void NeuralNetwork::PrintInnerWeights(std::ostream& os) {
+    os << "=== INNER WEIGHTS ===\n";
+    os << *inner_weights_;
+}
+
+void NeuralNetwork::PrintInputNodes(std::ostream& os) {
+    os << "=== INPUTS ===\n";
+    InputBatch& ib = GetInputNodes();
+    vector<vector<double>*>& inputs = ib.GetSeries();
+    for (auto it = inputs.begin(); it != inputs.end(); ++it) {
+        os << "[ ";
+        for (auto it2 = (*it)->begin(); it2 != (*it)->end(); ++it2)
+            os << *it2 << " ";
+        os << "]\n";
+    }
+    os << std::endl;
+}
+void NeuralNetwork::PrintInputWeights(std::ostream& os) {
+    os << "=== INPUT WEIGHTS ===\n";
+    InputBatch& ib = GetInputNodes();
+    vector<SparseMatrix<double>*>& weights = ib.GetWeights();
+    for (auto it = weights.begin(); it != weights.end(); ++it) {
+        os << **it;
+    }
+    os << std::endl;
+}
+
+void NeuralNetwork::PrintInputCapacities(std::ostream& os) {
+    os << "=== INPUT CAPACITIES ===\n";
+    InputBatch& ib = GetInputNodes();
+    vector<vector<double>*>& capacities = ib.GetCapacities();
+    for (auto it = capacities.begin(); it != capacities.end(); ++it) {
+        os << "[ ";
+        for (size_t i = 0; i < (*it)->size(); ++i)
+            os << (**it)[i] << " ";
+        os << "]\n";
+    }
+}
+
+void NeuralNetwork::SetConstants(double base_weights, double dampening, double plasticity,
+    double pruning, double synaptogenesis) {
+    BASE_WEIGHTS = base_weights;
+    DAMPENING = dampening;
+    PLASTICITY = plasticity;
+    PRUNING = pruning;
+    SYNAPTOGENESIS = synaptogenesis;
+}
+
+void NeuralNetwork::GetStructuralData(NetworkStructure* ns) {
+
+    // Set constants
+    ns->dampening_ = DAMPENING;
+    ns->plasticity_ = PLASTICITY;
+    ns->pruning_ = PRUNING;
+    ns->synaptogenesis_ = SYNAPTOGENESIS;
+    ns->network_size_ = size_;
+
+    ns->inner_capacity_ = CAPACITY;
+    ns->inner_biases_ = *inner_biases_;
+    ns->inner_weights_.Set(*inner_weights_);
+
+    const vector<vector<double>*>& current_input_cap = input_nodes_.GetCapacities();
+    const vector<vector<double>*>& current_output_cap = output_nodes_.GetCapacities();
+    const vector<SparseMatrix<double>*>& current_input_weights = input_nodes_.GetWeights();
+    const vector<SparseMatrix<double>*>& current_output_weights = output_nodes_.GetWeights();
+
+    if (ns->inputs_capacity_.size() != current_input_cap.size() ||
+        ns->outputs_capacity_.size() != current_output_cap.size()) {
+
+        ns->Clear(current_input_cap.size(), current_output_cap.size());
+    }
+
+    for (size_t i = 0; i < ns->n_inputs_; ++i) {
+        *ns->inputs_capacity_[i] = *current_input_cap[i];
+        (ns->inputs_weight_[i])->Set(*current_input_weights[i]);
+    }
+
+    for (size_t i = 0; i < ns->n_outputs_; ++i) {
+        *ns->outputs_capacity_[i] = *current_output_cap[i];
+        (ns->outputs_weight_[i])->Set(*current_output_weights[i]);
+    }
+
+}
+
+void NeuralNetwork::SetStructuralData(NetworkStructure* ns) {
+
+    if (size_ != ns->network_size_)
+        throw std::runtime_error("Invlaid network size");
+
+    DAMPENING = ns->dampening_;
+    PLASTICITY = ns->plasticity_;
+    PRUNING = ns->pruning_;
+    SYNAPTOGENESIS = ns->synaptogenesis_;
+
+    CAPACITY = ns->inner_capacity_;
+    *inner_biases_ = ns->inner_biases_;
+    inner_weights_->Set(ns->inner_weights_);
+
+    vector<vector<double>*>& current_input_cap = input_nodes_.GetCapacities();
+    vector<vector<double>*>& current_output_cap = output_nodes_.GetCapacities();
+    vector<SparseMatrix<double>*>& current_input_weights = input_nodes_.GetWeights();
+    vector<SparseMatrix<double>*>& current_output_weights = output_nodes_.GetWeights();
+
+    for (size_t i = 0; i < ns->n_inputs_; ++i) {
+        *current_input_cap[i] = *ns->inputs_capacity_[i];
+        current_input_weights[i]->Set(*ns->inputs_weight_[i]);
+    }
+
+    for (size_t i = 0; i < ns->n_outputs_; ++i) {
+        *current_output_cap[i] = *ns->outputs_capacity_[i];
+        current_output_weights[i]->Set(*ns->outputs_weight_[i]);
+    }
+
+}
+
+void NetworkStructure::Clear(size_t n_inputs, size_t n_outputs) {
+
+    for (size_t i = n_inputs; i < n_inputs_; ++i) {
+        delete inputs_capacity_[i];
+        delete inputs_weight_[i];
+    }
+
+    inputs_capacity_.reserve(n_inputs);
+    inputs_weight_.reserve(n_inputs);
+
+    for (size_t i = n_inputs_; i < n_inputs; ++i) {
+        inputs_capacity_[i] = new vector<double>();
+        inputs_weight_[i] = new SparseMatrix<double>();
+    }
+
+    for (size_t i = n_outputs; i < n_outputs_; ++i) {
+        delete outputs_capacity_[i];
+        delete outputs_weight_[i];
+    }
+
+    outputs_capacity_.reserve(n_outputs);
+    outputs_weight_.reserve(n_outputs);
+
+    for (size_t i = n_outputs_; i < n_outputs; ++i) {
+        outputs_capacity_[i] = new vector<double>();
+        outputs_weight_[i] = new SparseMatrix<double>();
+    }
+
+    n_inputs_ = n_inputs;
+    n_outputs_ = n_outputs;
+
+}
+
+NetworkStructure::NetworkStructure(size_t network_size) {
+    network_size_ = network_size;
+    n_inputs_ = 0;
+    n_outputs_ = 0;
+}
+
+NetworkStructure::~NetworkStructure() {
+    Clear(0, 0);
+}

@@ -8,13 +8,16 @@
 #include <random>
 #include "linalg.h"
 
+
 using std::vector;
 using std::size_t;
 using std::ostream;
 using std::map;
 
+
 template<typename T> class SparseMatrix;
 template<typename T> ostream& operator<<(ostream& os, const SparseMatrix<T>& sm); 
+
 template<typename T>
 class SparseMatrix {
     public:
@@ -35,6 +38,10 @@ class SparseMatrix {
         SparseMatrix();
         SparseMatrix(int width, int height);
         SparseMatrix(size_t width, size_t height);
+        SparseMatrix(const SparseMatrix& other);
+        ~SparseMatrix();
+        void Set(const SparseMatrix& other);
+        SparseMatrix& operator=(const SparseMatrix& rhs);
         RowProxy operator[](int index);
         const RowProxy operator[](int index) const;  
 

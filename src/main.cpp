@@ -1,8 +1,10 @@
 #include "sparsematrix.h"
 #include "neuralnetwork.h"
+#include "trainerwrapper_impl.h"
 #include <iostream>
 #include <ctime>
 #include <random>
+#include <math.h>
 
 void printVector(std::ostream& os, const std::vector<double>& v) {
     os << "[ ";
@@ -13,42 +15,34 @@ void printVector(std::ostream& os, const std::vector<double>& v) {
 
 int main( void ) {
 
-    NeuralNetwork nn(4);
-    nn.SetConstants(0, 1, 0.2, 0.006, 1, std::vector<double>(4, 3));
-    std::vector<double>* input = new vector<double>({1, 0});
-    nn.AddInput(input);
-    InputBatch& inputBatch = nn.GetInputNodes();
-    SparseMatrix<double>& inputWeights = inputBatch.GetWeight(0);
-    SparseMatrix<double>& innerWeights = nn.GetWeights();
-    innerWeights[0][1] = 2.0;
-    innerWeights[0][3] = 0.2;
-    inputWeights[0][0] = 1.0;
-    inputWeights[1][3] = -1.0;
-    std::cout << "Inputs:\n";
-    printVector(std::cout, *input);
-    std::cout << "Input Weights:\n";
-    std::cout << inputWeights;
-    std::cout << "Inner Nodes:\n";
-    nn.PrintInnerNodes(std::cout);
-    std::cout << "Inner Weights:\n";
-    std::cout << innerWeights;
-
-
+    TrainerWrapper_impl tw(50, 15);
+    tw.PrintInnerNodes();
+    double** inputs = tw.AddInputArray(5); // 10 x 5
+    double** outputs = tw.AddOutputArray(3); // 10 x 5
+    for (size_t i = 0; i < 50; ++i) {
+        for (size_t j = 0; j < 5; ++j)
+            inputs[i][j] = j;
+    }
+    tw.NextGeneration(0);
     for (int i = 0; i < 100; ++i) {
-        if (i == 5) {
-            std::cout << "========= INPUTS CHANGED =========\n";
-            (*input)[1] = 1;
+        for (int j = 0; j < 50; ++j) {
+            tw.Step();
         }
-        std::cout << "========= STEP =========\n";
-        nn.Step();
-        std::cout << "Inputs:\n";
-        printVector(std::cout, *input);
-        std::cout << "Input Weights:\n";
-        std::cout << inputWeights;
-        std::cout << "Inner Nodes:\n";
-        nn.PrintInnerNodes(std::cout);
-        std::cout << "Inner Weights:\n";
-        std::cout << innerWeights;
+        double min_dist = 100;
+        double min_id = 0;
+        for (int j = 0; j < 50; ++j) {
+            double dist = std::pow(outputs[j][0] - 2, 2) + std::pow(outputs[j][1] - 2, 2) + std::pow(outputs[j][2], 2);
+            if (dist < min_dist) {
+                min_dist = dist;
+                min_id = j;
+            }
+        }
+        tw.NextGeneration(min_id);
+        // std::cout << "[ ";
+        // for (int j = 0; j < 5; j++)
+        //     std::cout << outputs[(int)min_id][j] << " ";
+        // std::cout << "]" << std::endl;;
+        std::cout << min_dist << std::endl;
     }
     
 }
